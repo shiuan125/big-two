@@ -2,7 +2,9 @@
 <html lang="zh-TW">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <title>大老二 Big Two</title>
 <script>
 // 動態載入 PeerJS，備用多個 CDN
@@ -44,12 +46,20 @@
 
 * { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
 
+html, body {
+  height: 100%;
+  overscroll-behavior: none;
+}
+
 body {
   background: var(--bg);
   color: var(--white);
   font-family: 'Noto Serif TC', serif;
   min-height: 100vh;
+  min-height: -webkit-fill-available;
   overflow: hidden;
+  position: fixed;
+  width: 100%;
 }
 
 body::before {
@@ -61,10 +71,15 @@ body::before {
   pointer-events:none; z-index:0;
 }
 
-#app { position:relative; z-index:1; width:100vw; height:100vh; }
+#app { position:relative; z-index:1; width:100%; height:100%; }
 
 /* ===== SCREENS ===== */
-.screen { display:none; flex-direction:column; align-items:center; justify-content:center; height:100vh; padding:20px; gap:16px; }
+.screen {
+  display:none; flex-direction:column; align-items:center; justify-content:center;
+  height:100%; padding:20px;
+  padding-bottom: calc(20px + env(safe-area-inset-bottom));
+  gap:16px;
+}
 .screen.active { display:flex; }
 
 .logo {
@@ -154,7 +169,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
 /* ===== GAME SCREEN ===== */
 #gameScreen {
   display:none; position:relative;
-  width:100vw; height:100vh; overflow:hidden;
+  width:100%; height:100%; overflow:hidden;
   background:
     repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.005) 3px, rgba(255,255,255,0.005) 6px),
     radial-gradient(ellipse at 50% 50%, #0f3a20 0%, #060e10 100%);
@@ -162,11 +177,15 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
 #gameScreen.active { display:block; }
 
 /* Zones */
-#zTop    { position:absolute; top:0;   left:0;  right:0;  height:22%; display:flex; align-items:center; justify-content:center; }
-#zLeft   { position:absolute; top:22%; left:0;  width:18%; height:56%; display:flex; align-items:center; justify-content:center; }
+#zTop    { position:absolute; top:0; left:0; right:0; height:22%; display:flex; align-items:center; justify-content:center; }
+#zLeft   { position:absolute; top:22%; left:0; width:18%; height:56%; display:flex; align-items:center; justify-content:center; }
 #zRight  { position:absolute; top:22%; right:0; width:18%; height:56%; display:flex; align-items:center; justify-content:center; }
 #zCenter { position:absolute; top:22%; left:18%; right:18%; height:56%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
-#zBottom { position:absolute; bottom:0; left:0; right:0; height:38%; display:flex; flex-direction:column; }
+#zBottom {
+  position:absolute; bottom:0; left:0; right:0; height:38%;
+  display:flex; flex-direction:column;
+  padding-bottom: env(safe-area-inset-bottom);
+}
 
 /* Opponent */
 .opp { display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px; width:100%; }
@@ -391,7 +410,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
-  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.0</span></p>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.1</span></p>
 </div>
 
 <!-- ===== WAIT ===== -->
