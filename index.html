@@ -435,7 +435,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <div class="box-label">🏠 建立或加入房間</div>
     <button class="btn gold" onclick="hostGame()">建立房間（我當房主）</button>
     <div style="text-align:center;font-size:0.75rem;color:var(--gray);letter-spacing:1px;">── 或 ──</div>
-    <input type="text" id="joinCode" placeholder="輸入房主的 6 碼 ID" maxlength="20">
+    <input type="text" id="joinCode" placeholder="輸入房主的 6 碼 ID" maxlength="20" style="text-transform:none;letter-spacing:2px;">
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
@@ -506,7 +506,10 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <div class="otitle" id="oTitle">遊戲結束</div>
     <div id="oContent"></div>
     <div class="omsg" id="oMsg"></div>
-    <button class="btn gold" onclick="location.reload()">回大廳</button>
+    <div style="display:flex;flex-direction:column;gap:8px;">
+      <button class="btn gold" id="playAgainBtn" onclick="playAgain()" style="display:none">再來一局 🔄</button>
+      <button class="btn danger" onclick="location.reload()" style="opacity:0.7">回大廳</button>
+    </div>
   </div>
 </div>
 
@@ -620,7 +623,7 @@ let myHand=[], sel=[];
 // ==========================================
 function initPeer(cb) {
   // Use random 6-char ID for readability
-  const shortId = Math.random().toString(36).substr(2,6).toUpperCase();
+  const shortId = Math.random().toString(36).substr(2,6).toLowerCase();
   peer = new Peer(shortId, {
     host: '0.peerjs.com', port: 443, path: '/', secure: true,
     debug: 0
@@ -819,7 +822,7 @@ let pubState=null; // public game state from host
 
 function joinGame() {
   myName=document.getElementById('myNameIn').value.trim();
-  const code=document.getElementById('joinCode').value.trim().toUpperCase();
+  const code=document.getElementById('joinCode').value.trim();
   if(!myName){showMsg('lobbyMsg','請輸入名字','err');return;}
   if(!code){showMsg('lobbyMsg','請輸入房間 ID','err');return;}
   showMsg('lobbyMsg','連線中... ⏳','');
@@ -1178,7 +1181,17 @@ function showResult(finished, ps, hands) {
   document.getElementById('oContent').innerHTML=html;
   const winner=ps[finished[0]];
   document.getElementById('oMsg').textContent=(winner?winner.name:'?')+' 獲勝！';
+  // 只有房主可以再來一局
+  document.getElementById('playAgainBtn').style.display=isHost?'block':'none';
   document.getElementById('overlay').classList.add('show');
+}
+
+function playAgain() {
+  if(!isHost) return;
+  document.getElementById('overlay').classList.remove('show');
+  lastShownSeats = new Set();
+  // 重新發牌開始
+  hostStart();
 }
 
 // ==========================================
@@ -1222,6 +1235,7 @@ window.joinGame = joinGame;
 window.hostStart = hostStart;
 window.doPlay = doPlay;
 window.doPass = doPass;
+window.playAgain = playAgain;
 
 }); // end waitForPeer
 </script>
