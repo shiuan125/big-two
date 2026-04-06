@@ -412,7 +412,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
-  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.2</span></p>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.4</span></p>
 </div>
 
 <!-- ===== WAIT ===== -->
@@ -708,7 +708,7 @@ function applyMove(data) {
       if(!isBomb && cards.length!==GS.lastPlay.length) return;
       if(!beats(combo,prev)) return;
     }
-    if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
+    if(GS.lastPlay===null&&GS.lastSeat===-1&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
 
     // Remove from hand
     GS.hands[data.seat]=GS.hands[data.seat].filter(hc=>!cards.some(pc=>pc.rank===hc.rank&&pc.suit===hc.suit));
@@ -991,10 +991,11 @@ function getAllWinningCombos() {
   const results = [];
   const n = myHand.length;
   const prev = GS.lastPlay && GS.lastPlay.length > 0 ? analyzeCombo(GS.lastPlay) : null;
-  const isFirst = GS.lastPlay === null;
-  const need3C = isFirst;
+  const isFirstPlay = GS.lastPlay === null && GS.lastSeat === -1;
+  // 只有真正的第一手（全場開局）才需要含 3♣
+  const need3C = isFirstPlay && myHand.some(c=>c.rank==='3'&&c.suit==='♣');
 
-  // 一般牌型：跟上家相同張數，或首出時所有張數
+  // 一般牌型：跟上家相同張數，或自由出時所有張數
   const normalSizes = prev
     ? [GS.lastPlay.length]
     : [1,2,3,5];
@@ -1011,7 +1012,6 @@ function getAllWinningCombos() {
       if(need3C && !cards.some(c=>c.rank==='3'&&c.suit==='♣')) continue;
       if(prev){
         const isBomb=BOMBS.includes(combo.type);
-        // 非炸彈必須張數相同
         if(!isBomb && cards.length!==GS.lastPlay.length) continue;
         if(!beats(combo,prev)) continue;
       }
@@ -1096,7 +1096,9 @@ function doPlay() {
   const cards=sel.map(i=>myHand[i]);
   const combo=analyzeCombo(cards);
   if(!combo){toast('牌型無效');return;}
-  if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
+  // 只有全場第一手（lastSeat===-1）才需要含 3♣
+  const isFirstPlay = GS.lastPlay===null && GS.lastSeat===-1;
+  if(isFirstPlay && !cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
   if(GS.lastPlay&&GS.lastPlay.length>0){
     const prev=analyzeCombo(GS.lastPlay);
     const isBomb=BOMBS.includes(combo.type);
