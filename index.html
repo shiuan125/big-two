@@ -391,7 +391,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
-  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.0.0</span></p>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.0</span></p>
 </div>
 
 <!-- ===== WAIT ===== -->
@@ -514,30 +514,44 @@ function analyzeCombo(cards) {
     const straight=vs.every((v,i)=>i===0||v===vs[i-1]+1);
     const rg={};vs.forEach(v=>rg[v]=(rg[v]||0)+1);
     const gr=Object.values(rg).sort((a,b)=>b-a);
-    const fiveOrder=['straight','flush','full','four','sf'];
+    // 同花順（炸彈）
     if(flush&&straight) return {name:'同花順',type:'sf',power:cardVal(s[4])+1000};
+    // 四條（炸彈）
     if(gr[0]===4){
       const q=parseInt(Object.keys(rg).find(k=>rg[k]===4));
       return {name:'四條',type:'four',power:q*4+800};
     }
+    // 葫蘆
     if(gr[0]===3&&gr[1]===2){
       const t=parseInt(Object.keys(rg).find(k=>rg[k]===3));
       return {name:'葫蘆',type:'full',power:t*4+600};
     }
-    if(flush) return {name:'同花',type:'flush',power:cardVal(s[4])+400};
+    // 順子（同花也算順子，不另設同花牌型）
     if(straight) return {name:'順子',type:'straight',power:cardVal(s[4])+200};
     return null;
   }
   return null;
 }
 
+// 炸彈：四條、同花順，可壓任何牌型
+const BOMBS = ['four','sf'];
+
 function beats(nc,oc) {
   if(!oc) return true;
-  const fiveT=['straight','flush','full','four','sf'];
-  if(nc.type===oc.type) return nc.power>oc.power;
-  if(fiveT.includes(nc.type)&&fiveT.includes(oc.type))
-    return fiveT.indexOf(nc.type)>fiveT.indexOf(oc.type);
-  return false;
+  const ncBomb = BOMBS.includes(nc.type);
+  const ocBomb = BOMBS.includes(oc.type);
+  // 炸彈壓非炸彈
+  if(ncBomb && !ocBomb) return true;
+  // 非炸彈壓不了炸彈
+  if(!ncBomb && ocBomb) return false;
+  // 兩個都是炸彈：同花順 > 四條，同類比 power
+  if(ncBomb && ocBomb) {
+    if(nc.type===oc.type) return nc.power>oc.power;
+    return nc.type==='sf'; // 同花順大於四條
+  }
+  // 一般牌型：同類才能壓，且 power 要大
+  if(nc.type!==oc.type) return false;
+  return nc.power>oc.power;
 }
 
 // ==========================================
@@ -668,7 +682,10 @@ function applyMove(data) {
     if(!combo) return;
     if(GS.lastPlay&&GS.lastPlay.length>0){
       const prev=analyzeCombo(GS.lastPlay);
-      if(!beats(combo,prev)||cards.length!==GS.lastPlay.length) return;
+      const isBomb=BOMBS.includes(combo.type);
+      // 非炸彈必須張數相同；炸彈可壓任何張數
+      if(!isBomb && cards.length!==GS.lastPlay.length) return;
+      if(!beats(combo,prev)) return;
     }
     if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
 
@@ -954,12 +971,17 @@ function getAllWinningCombos() {
   const n = myHand.length;
   const prev = GS.lastPlay && GS.lastPlay.length > 0 ? analyzeCombo(GS.lastPlay) : null;
   const isFirst = GS.lastPlay === null;
-  const need3C = isFirst; // 第一手需含 3♣
+  const need3C = isFirst;
 
-  // Generate combos by size: 1,2,3,5
-  const sizes = prev ? [prev.type==='single'?1:prev.type==='pair'?2:prev.type==='triple'?3:5] : [1,2,3,5];
+  // 一般牌型：跟上家相同張數，或首出時所有張數
+  const normalSizes = prev
+    ? [GS.lastPlay.length]
+    : [1,2,3,5];
 
-  for(const size of sizes){
+  // 炸彈永遠可考慮（張數固定5張）
+  const allSizes = new Set([...normalSizes, 5]);
+
+  for(const size of allSizes){
     const combos = getCombinations(n, size);
     for(const indices of combos){
       const cards = indices.map(i=>myHand[i]);
@@ -967,7 +989,9 @@ function getAllWinningCombos() {
       if(!combo) continue;
       if(need3C && !cards.some(c=>c.rank==='3'&&c.suit==='♣')) continue;
       if(prev){
-        if(cards.length!==GS.lastPlay.length) continue;
+        const isBomb=BOMBS.includes(combo.type);
+        // 非炸彈必須張數相同
+        if(!isBomb && cards.length!==GS.lastPlay.length) continue;
         if(!beats(combo,prev)) continue;
       }
       results.push({combo, indices, cards});
@@ -1054,7 +1078,8 @@ function doPlay() {
   if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
   if(GS.lastPlay&&GS.lastPlay.length>0){
     const prev=analyzeCombo(GS.lastPlay);
-    if(cards.length!==GS.lastPlay.length){toast('牌數必須相同（'+GS.lastPlay.length+'張）');return;}
+    const isBomb=BOMBS.includes(combo.type);
+    if(!isBomb && cards.length!==GS.lastPlay.length){toast('牌數必須相同（'+GS.lastPlay.length+'張）');return;}
     if(!beats(combo,prev)){toast('出牌必須大於上家');return;}
   }
   // Remove from local hand
