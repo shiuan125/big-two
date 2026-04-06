@@ -265,6 +265,50 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
 
 /* Action bar */
 #actBar { display:flex; gap:8px; padding:6px 10px 10px; flex-shrink:0; }
+
+/* Hint panel */
+#hintPanel {
+  padding:4px 10px 0;
+  min-height:28px;
+  flex-shrink:0;
+  overflow-x:auto;
+  display:flex;
+  align-items:center;
+  gap:6px;
+  scrollbar-width:none;
+}
+#hintPanel::-webkit-scrollbar{display:none;}
+.hint-label {
+  font-family:'Oswald',sans-serif;
+  font-size:0.62rem; letter-spacing:2px; color:var(--gray);
+  text-transform:uppercase; white-space:nowrap; flex-shrink:0;
+}
+.hint-chip {
+  background:rgba(201,168,76,0.12);
+  border:1px solid rgba(201,168,76,0.3);
+  border-radius:20px;
+  padding:4px 10px;
+  font-family:'Oswald',sans-serif;
+  font-size:0.7rem; letter-spacing:1px;
+  color:var(--gold2); white-space:nowrap;
+  cursor:pointer; flex-shrink:0;
+  transition:all 0.15s;
+}
+.hint-chip:hover { background:rgba(201,168,76,0.25); transform:translateY(-1px); }
+.hint-chip.winning {
+  background:rgba(79,201,122,0.12);
+  border-color:rgba(79,201,122,0.4);
+  color:var(--accent);
+}
+
+/* Card dim when not playable */
+.card.dim {
+  opacity:0.38;
+  filter:saturate(0.3);
+}
+.card.playable {
+  box-shadow:0 0 10px rgba(201,168,76,0.35);
+}
 .abtn {
   flex:1; padding:11px 4px; border:none; border-radius:10px;
   font-family:'Oswald',sans-serif; font-size:clamp(0.72rem,2.3vw,0.92rem);
@@ -390,6 +434,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
       <div id="myCount">0 張</div>
     </div>
     <div id="handWrap"><div id="handRow"></div></div>
+    <div id="hintPanel"></div>
     <div id="actBar">
       <button class="abtn play" id="playBtn" onclick="doPlay()" disabled>出牌</button>
       <button class="abtn pass" id="passBtn" onclick="doPass()" disabled>PASS</button>
@@ -857,19 +902,122 @@ function renderHand() {
   const el=document.getElementById('handRow');
   el.innerHTML='';
   myHand.sort(cmp);
+  const isMyTurn=GS&&GS.turn===mySeat;
+
+  // Compute which card indices are part of any playable combo
+  const playableIdx = isMyTurn ? getPlayableIndices() : new Set();
+
   myHand.forEach((c,i)=>{
+    const isSel=sel.includes(i);
+    const isPlayable=playableIdx.has(i);
+    let cls='card '+(isRed(c)?'red':'black');
+    if(isSel) cls+=' sel';
+    else if(isMyTurn && !isPlayable && playableIdx.size>0) cls+=' dim';
+    else if(isMyTurn && isPlayable && !isSel) cls+=' playable';
+
     const d=document.createElement('div');
-    d.className='card '+(isRed(c)?'red':'black')+(sel.includes(i)?' sel':'');
+    d.className=cls;
     d.innerHTML=`<div class="corner"><div class="cr">${c.rank}</div><div class="cs">${c.suit}</div></div>
       <div class="rank">${c.rank}</div><div class="suit">${c.suit}</div>`;
     d.onclick=()=>{
-      if(GS.turn!==mySeat) return;
+      if(!isMyTurn) return;
       const idx=sel.indexOf(i);
       if(idx===-1) sel.push(i); else sel.splice(idx,1);
       renderHand();
+      renderHints();
     };
     el.appendChild(d);
   });
+  renderHints();
+}
+
+// 找出手牌中所有「能出」的單張/組合，回傳可用牌的 index 集合
+function getPlayableIndices() {
+  const idxSet = new Set();
+  const combos = getAllWinningCombos();
+  combos.forEach(combo => combo.indices.forEach(i => idxSet.add(i)));
+  return idxSet;
+}
+
+// 產生所有能打贏上家（或合法首出）的組合
+function getAllWinningCombos() {
+  const results = [];
+  const n = myHand.length;
+  const prev = GS.lastPlay && GS.lastPlay.length > 0 ? analyzeCombo(GS.lastPlay) : null;
+  const isFirst = GS.lastPlay === null;
+  const need3C = isFirst; // 第一手需含 3♣
+
+  // Generate combos by size: 1,2,3,5
+  const sizes = prev ? [prev.type==='single'?1:prev.type==='pair'?2:prev.type==='triple'?3:5] : [1,2,3,5];
+
+  for(const size of sizes){
+    const combos = getCombinations(n, size);
+    for(const indices of combos){
+      const cards = indices.map(i=>myHand[i]);
+      const combo = analyzeCombo(cards);
+      if(!combo) continue;
+      if(need3C && !cards.some(c=>c.rank==='3'&&c.suit==='♣')) continue;
+      if(prev){
+        if(cards.length!==GS.lastPlay.length) continue;
+        if(!beats(combo,prev)) continue;
+      }
+      results.push({combo, indices, cards});
+    }
+  }
+  return results;
+}
+
+// 組合產生器（取 n 選 k）
+function getCombinations(n, k) {
+  const result=[];
+  function bt(start,cur){
+    if(cur.length===k){result.push([...cur]);return;}
+    for(let i=start;i<n;i++){cur.push(i);bt(i+1,cur);cur.pop();}
+  }
+  bt(0,[]);
+  return result;
+}
+
+function renderHints() {
+  const panel=document.getElementById('hintPanel');
+  panel.innerHTML='';
+  if(!GS||GS.turn!==mySeat){return;}
+
+  const combos=getAllWinningCombos();
+  if(!combos.length){
+    const lbl=document.createElement('div');
+    lbl.className='hint-label';
+    lbl.textContent= GS.lastPlay?'無牌可打贏上家':'無合法出牌';
+    panel.appendChild(lbl);
+    return;
+  }
+
+  const lbl=document.createElement('div');
+  lbl.className='hint-label';
+  lbl.textContent='可出：';
+  panel.appendChild(lbl);
+
+  // Deduplicate by combo name+power, show max 8 hints
+  const seen=new Set();
+  let shown=0;
+  for(const {combo,indices,cards} of combos){
+    if(shown>=8) break;
+    const key=combo.type+combo.power;
+    if(seen.has(key)) continue;
+    seen.add(key);
+    shown++;
+
+    const chip=document.createElement('div');
+    const label=cards.map(c=>c.rank+c.suit).join(' ');
+    chip.className='hint-chip winning';
+    chip.textContent=combo.name+' '+label;
+    chip.title='點擊自動選牌';
+    chip.onclick=()=>{
+      sel=[...indices];
+      renderHand();
+    };
+    panel.appendChild(chip);
+  }
 }
 
 // ==========================================
