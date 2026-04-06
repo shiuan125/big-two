@@ -386,11 +386,38 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
 
 /* Connection dot */
 #dot { position:fixed; top:8px; right:10px; font-size:0.6rem; font-family:'Oswald',sans-serif; letter-spacing:2px; color:var(--accent); opacity:0.45; z-index:50; }
+
+/* LAST 提示 */
+#lastBanner {
+  position:fixed; top:30%; left:50%;
+  transform:translateX(-50%) scale(0.5);
+  background:linear-gradient(135deg,#8a1a1a,#cc2a2a);
+  border:2px solid rgba(255,100,100,0.6);
+  border-radius:16px; padding:14px 32px;
+  font-family:'Oswald',sans-serif;
+  font-size:clamp(1.2rem,5vw,2rem);
+  font-weight:700; letter-spacing:6px;
+  color:#fff; text-align:center;
+  pointer-events:none; z-index:300;
+  opacity:0; transition:none;
+  white-space:nowrap;
+}
+#lastBanner.show {
+  animation: lastPop 2.5s ease forwards;
+}
+@keyframes lastPop {
+  0%   { opacity:0; transform:translateX(-50%) scale(0.5); }
+  15%  { opacity:1; transform:translateX(-50%) scale(1.15); }
+  25%  { transform:translateX(-50%) scale(1); }
+  70%  { opacity:1; transform:translateX(-50%) scale(1); }
+  100% { opacity:0; transform:translateX(-50%) scale(0.9); }
+}
 </style>
 </head>
 <body>
 <div id="dot">● P2P</div>
 <div id="toast"></div>
+<div id="lastBanner"></div>
 <div id="app">
 
 <!-- ===== LOBBY ===== -->
@@ -412,7 +439,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
-  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.1.4</span></p>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.2.4</span></p>
 </div>
 
 <!-- ===== WAIT ===== -->
@@ -677,7 +704,8 @@ function hostStart() {
   GS={
     turn:startSeat, lastPlay:null, lastSeat:-1,
     passCount:0, finished:[], hands,
-    players:[...players], activeSeat:seats
+    players:[...players], activeSeat:seats,
+    gameStarted:false
   };
 
   // Send each player their own hand
@@ -690,6 +718,7 @@ function hostStart() {
   // Host starts game
   myHand=[...GS.hands[0]].sort(cmp);
   sel=[];
+  lastShownSeats = new Set();
   showGame();
   renderGame();
 }
@@ -708,11 +737,13 @@ function applyMove(data) {
       if(!isBomb && cards.length!==GS.lastPlay.length) return;
       if(!beats(combo,prev)) return;
     }
-    if(GS.lastPlay===null&&GS.lastSeat===-1&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
+    // 只有全場第一手才需要含 3♣
+    if(!GS.gameStarted && !cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
 
     // Remove from hand
     GS.hands[data.seat]=GS.hands[data.seat].filter(hc=>!cards.some(pc=>pc.rank===hc.rank&&pc.suit===hc.suit));
     GS.lastPlay=cards; GS.lastSeat=data.seat; GS.passCount=0;
+    GS.gameStarted=true; // 第一手出完，之後不再限制 3♣
     if(GS.hands[data.seat].length===0&&!GS.finished.includes(data.seat)) GS.finished.push(data.seat);
 
     nextTurn(data.seat);
@@ -760,12 +791,19 @@ function nextTurn(from) {
 
 function broadcastState() {
   // Send state without full hands for privacy
-  const pub={turn:GS.turn,lastPlay:GS.lastPlay,lastSeat:GS.lastSeat,passCount:GS.passCount,finished:GS.finished,players:GS.players,handCounts:GS.hands.map(h=>h.length)};
+  const pub={turn:GS.turn,lastPlay:GS.lastPlay,lastSeat:GS.lastSeat,passCount:GS.passCount,finished:GS.finished,players:GS.players,handCounts:GS.hands.map(h=>h.length),gameStarted:GS.gameStarted};
   broadcastToAll({type:'state',state:pub});
   // Also send each player updated hand if changed
   for(const conn of connections){
     const seat=GS.players.findIndex(p=>p&&p.peerId===conn.peer);
     if(seat>=0) conn.send({type:'yourHand',hand:GS.hands[seat],seat});
+  }
+  // 通知所有人誰剩最後一張
+  const lastOnes=GS.activeSeat.filter(s=>!GS.finished.includes(s)&&GS.hands[s].length===1);
+  if(lastOnes.length>0){
+    broadcastToAll({type:'lastCard',seats:lastOnes,players:GS.players});
+    // host 自己也處理
+    handleLastCard(lastOnes, GS.players);
   }
 }
 
@@ -842,6 +880,10 @@ function guestHandleMsg(data) {
     // Build fake hands count for result
     const fakeHands=GS&&GS.hands?GS.hands:data.players.map(()=>[]);
     showResult(data.finished,data.players,fakeHands);
+    return;
+  }
+  if(data.type==='lastCard'){
+    handleLastCard(data.seats, data.players);
     return;
   }
 }
@@ -991,9 +1033,8 @@ function getAllWinningCombos() {
   const results = [];
   const n = myHand.length;
   const prev = GS.lastPlay && GS.lastPlay.length > 0 ? analyzeCombo(GS.lastPlay) : null;
-  const isFirstPlay = GS.lastPlay === null && GS.lastSeat === -1;
-  // 只有真正的第一手（全場開局）才需要含 3♣
-  const need3C = isFirstPlay && myHand.some(c=>c.rank==='3'&&c.suit==='♣');
+  // 只有全場第一手才需要含 3♣
+  const need3C = !GS.gameStarted && myHand.some(c=>c.rank==='3'&&c.suit==='♣');
 
   // 一般牌型：跟上家相同張數，或自由出時所有張數
   const normalSizes = prev
@@ -1096,9 +1137,8 @@ function doPlay() {
   const cards=sel.map(i=>myHand[i]);
   const combo=analyzeCombo(cards);
   if(!combo){toast('牌型無效');return;}
-  // 只有全場第一手（lastSeat===-1）才需要含 3♣
-  const isFirstPlay = GS.lastPlay===null && GS.lastSeat===-1;
-  if(isFirstPlay && !cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
+  // 只有全場第一手才需要含 3♣
+  if(!GS.gameStarted && !cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
   if(GS.lastPlay&&GS.lastPlay.length>0){
     const prev=analyzeCombo(GS.lastPlay);
     const isBomb=BOMBS.includes(combo.type);
@@ -1139,6 +1179,31 @@ function showResult(finished, ps, hands) {
   const winner=ps[finished[0]];
   document.getElementById('oMsg').textContent=(winner?winner.name:'?')+' 獲勝！';
   document.getElementById('overlay').classList.add('show');
+}
+
+// ==========================================
+//  LAST CARD
+// ==========================================
+let lastShownSeats = new Set();
+
+function handleLastCard(seats, ps) {
+  // 過濾掉已經喊過的
+  const newOnes = seats.filter(s => !lastShownSeats.has(s));
+  if(!newOnes.length) return;
+  newOnes.forEach(s => lastShownSeats.add(s));
+
+  const names = newOnes.map(s => ps[s] ? (s===mySeat?'你':ps[s].name) : '?');
+  const isSelf = newOnes.includes(mySeat);
+  const text = isSelf ? '🃏 LAST！' : '🃏 ' + names.join('、') + ' LAST！';
+
+  const banner = document.getElementById('lastBanner');
+  banner.textContent = text;
+  banner.classList.remove('show');
+  void banner.offsetWidth; // reflow
+  banner.classList.add('show');
+
+  // 2.5秒後移除 class
+  setTimeout(() => banner.classList.remove('show'), 2500);
 }
 
 // ==========================================
