@@ -1,0 +1,946 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+<title>大老二 Big Two</title>
+<script>
+// 動態載入 PeerJS，備用多個 CDN
+(function(){
+  const urls = [
+    'https://cdn.jsdelivr.net/npm/peerjs@1.5.4/dist/peerjs.min.js',
+    'https://unpkg.com/peerjs@1.5.4/dist/peerjs.min.js',
+    'https://cdnjs.cloudflare.com/ajax/libs/peerjs/1.5.4/peerjs.min.js'
+  ];
+  let idx = 0;
+  function load() {
+    if(idx >= urls.length) {
+      document.body.innerHTML = '<div style="color:#ff6666;font-family:sans-serif;padding:40px;text-align:center"><h2>⚠️ 無法載入 PeerJS</h2><p>請檢查網路連線後重新整理</p></div>';
+      return;
+    }
+    const s = document.createElement('script');
+    s.src = urls[idx++];
+    s.onerror = load;
+    document.head.appendChild(s);
+  }
+  load();
+})();
+</script>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Serif+TC:wght@400;700;900&family=Oswald:wght@300;400;700&display=swap');
+
+:root {
+  --bg: #0a1628;
+  --felt: #0d2b1a;
+  --gold: #c9a84c;
+  --gold2: #f0d080;
+  --red: #e03030;
+  --white: #f5f0e8;
+  --gray: #8899aa;
+  --card-bg: #fdf8f0;
+  --accent: #4fc97a;
+  --accent2: #2ea855;
+}
+
+* { margin:0; padding:0; box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+
+body {
+  background: var(--bg);
+  color: var(--white);
+  font-family: 'Noto Serif TC', serif;
+  min-height: 100vh;
+  overflow: hidden;
+}
+
+body::before {
+  content:'';
+  position:fixed; inset:0;
+  background:
+    repeating-linear-gradient(45deg, transparent, transparent 2px, rgba(255,255,255,0.007) 2px, rgba(255,255,255,0.007) 4px),
+    radial-gradient(ellipse at 50% 40%, #0f3320 0%, #080e1a 80%);
+  pointer-events:none; z-index:0;
+}
+
+#app { position:relative; z-index:1; width:100vw; height:100vh; }
+
+/* ===== SCREENS ===== */
+.screen { display:none; flex-direction:column; align-items:center; justify-content:center; height:100vh; padding:20px; gap:16px; }
+.screen.active { display:flex; }
+
+.logo {
+  font-family:'Oswald',sans-serif;
+  font-size:clamp(3rem,10vw,5rem);
+  font-weight:700;
+  letter-spacing:6px;
+  background:linear-gradient(135deg,var(--gold),var(--gold2),var(--gold));
+  -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text;
+  filter:drop-shadow(0 0 24px rgba(201,168,76,0.4));
+  line-height:1;
+}
+.logo-sub {
+  font-family:'Oswald',sans-serif;
+  font-size:clamp(0.75rem,2.5vw,1rem);
+  color:var(--gold); letter-spacing:10px; opacity:0.6; text-transform:uppercase;
+}
+.suits { font-size:1.8rem; letter-spacing:14px; opacity:0.25; }
+
+.box {
+  background:rgba(255,255,255,0.04);
+  border:1px solid rgba(201,168,76,0.18);
+  border-radius:18px;
+  padding:22px 24px;
+  width:100%; max-width:360px;
+  display:flex; flex-direction:column; gap:12px;
+}
+.box-label {
+  font-family:'Oswald',sans-serif;
+  font-size:0.75rem; letter-spacing:3px; color:var(--gold); opacity:0.65; text-transform:uppercase;
+}
+
+input[type=text] {
+  background:rgba(255,255,255,0.06);
+  border:1px solid rgba(255,255,255,0.12);
+  border-radius:8px; padding:12px 16px;
+  color:var(--white); font-size:1.1rem;
+  font-family:'Oswald',sans-serif; letter-spacing:3px;
+  text-align:center; text-transform:uppercase; outline:none;
+  transition:border-color 0.2s; width:100%;
+}
+input[type=text]:focus { border-color:var(--gold); }
+input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; text-transform:none; font-size:0.9rem; }
+
+.btn {
+  background:linear-gradient(135deg,#1a4a2e,#2a6a45);
+  border:1px solid rgba(79,201,122,0.3);
+  border-radius:10px; padding:14px;
+  color:var(--white); font-family:'Oswald',sans-serif;
+  font-size:0.95rem; letter-spacing:3px; text-transform:uppercase;
+  cursor:pointer; transition:all 0.18s; width:100%;
+}
+.btn:hover { background:linear-gradient(135deg,#2a6a45,#3a9a60); transform:translateY(-1px); box-shadow:0 4px 20px rgba(79,201,122,0.2); }
+.btn:active { transform:translateY(0); }
+.btn.gold { background:linear-gradient(135deg,#6a4a10,#a87820); border-color:rgba(201,168,76,0.35); }
+.btn.gold:hover { background:linear-gradient(135deg,#8a6018,#c8942a); }
+.btn.danger { background:linear-gradient(135deg,#4a1515,#8a2828); border-color:rgba(200,60,60,0.35); }
+.btn:disabled { opacity:0.35; cursor:not-allowed; transform:none; }
+.row { display:flex; gap:8px; }
+.row .btn { flex:1; }
+
+.msg { font-size:0.82rem; color:var(--gray); text-align:center; min-height:18px; }
+.msg.ok { color:var(--accent); }
+.msg.err { color:#ff6666; }
+
+/* ===== WAIT SCREEN ===== */
+.room-code-display {
+  font-family:'Oswald',sans-serif;
+  font-size:2.8rem; font-weight:700; letter-spacing:12px;
+  color:var(--gold2);
+  background:rgba(201,168,76,0.08);
+  border:1px solid rgba(201,168,76,0.25);
+  border-radius:14px; padding:14px 28px; text-align:center;
+}
+.player-grid { display:grid; grid-template-columns:1fr 1fr; gap:8px; width:100%; max-width:340px; }
+.pslot {
+  background:rgba(255,255,255,0.03);
+  border:1px solid rgba(255,255,255,0.07);
+  border-radius:10px; padding:12px; text-align:center;
+  transition:all 0.3s;
+}
+.pslot.on { border-color:rgba(79,201,122,0.4); background:rgba(79,201,122,0.06); }
+.pslot .picon { font-size:1.4rem; margin-bottom:3px; }
+.pslot .pname { font-size:0.9rem; font-weight:700; }
+.pslot .pseat { font-size:0.65rem; color:var(--gray); letter-spacing:2px; text-transform:uppercase; margin-top:2px; }
+
+/* ===== GAME SCREEN ===== */
+#gameScreen {
+  display:none; position:relative;
+  width:100vw; height:100vh; overflow:hidden;
+  background:
+    repeating-linear-gradient(45deg, transparent, transparent 3px, rgba(255,255,255,0.005) 3px, rgba(255,255,255,0.005) 6px),
+    radial-gradient(ellipse at 50% 50%, #0f3a20 0%, #060e10 100%);
+}
+#gameScreen.active { display:block; }
+
+/* Zones */
+#zTop    { position:absolute; top:0;   left:0;  right:0;  height:22%; display:flex; align-items:center; justify-content:center; }
+#zLeft   { position:absolute; top:22%; left:0;  width:18%; height:56%; display:flex; align-items:center; justify-content:center; }
+#zRight  { position:absolute; top:22%; right:0; width:18%; height:56%; display:flex; align-items:center; justify-content:center; }
+#zCenter { position:absolute; top:22%; left:18%; right:18%; height:56%; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:8px; }
+#zBottom { position:absolute; bottom:0; left:0; right:0; height:38%; display:flex; flex-direction:column; }
+
+/* Opponent */
+.opp { display:flex; flex-direction:column; align-items:center; gap:5px; padding:6px; width:100%; }
+.oname {
+  font-family:'Oswald',sans-serif;
+  font-size:clamp(0.6rem,2.2vw,0.82rem); letter-spacing:2px;
+  color:var(--gold); text-transform:uppercase;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.oname.active { color:var(--accent); }
+.oname.empty { color:rgba(255,255,255,0.2); }
+.omini { display:flex; flex-wrap:wrap; gap:2px; justify-content:center; }
+.mc {
+  width:clamp(12px,2.8vw,20px); height:clamp(18px,4vw,29px);
+  background:linear-gradient(135deg,#2a4a8a,#1a2a6a);
+  border:1px solid rgba(255,255,255,0.18); border-radius:2px;
+}
+.ocount { font-size:0.7rem; color:var(--gray); }
+.opassed { font-size:0.68rem; color:#ff8844; letter-spacing:1px; }
+
+/* Table */
+#tableBox {
+  background:rgba(0,0,0,0.22);
+  border:1px solid rgba(201,168,76,0.12);
+  border-radius:18px; width:92%; min-height:90px;
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  gap:5px; padding:10px;
+}
+.tlabel { font-family:'Oswald',sans-serif; font-size:0.6rem; letter-spacing:3px; color:var(--gray); text-transform:uppercase; }
+.tcards { display:flex; gap:4px; flex-wrap:wrap; justify-content:center; min-height:52px; align-items:center; }
+.tcombo { font-family:'Oswald',sans-serif; font-size:0.72rem; color:var(--gold); letter-spacing:2px; }
+.twho { font-size:0.65rem; color:var(--gray); }
+
+/* Turn */
+#turnBadge {
+  font-family:'Oswald',sans-serif;
+  font-size:clamp(0.72rem,2.2vw,0.95rem); letter-spacing:3px;
+  padding:6px 16px; border-radius:20px; background:rgba(0,0,0,0.3); text-align:center;
+}
+#turnBadge.mine { color:var(--accent); border:1px solid rgba(79,201,122,0.4); animation:pulse 1.5s infinite; }
+#turnBadge.theirs { color:var(--gray); border:1px solid rgba(255,255,255,0.05); }
+@keyframes pulse { 0%,100%{opacity:1}50%{opacity:0.55} }
+
+/* My hand */
+#myInfo { display:flex; align-items:center; justify-content:space-between; padding:5px 12px 3px; flex-shrink:0; }
+#myName2 { font-family:'Oswald',sans-serif; font-size:clamp(0.8rem,2.5vw,1rem); letter-spacing:2px; color:var(--gold2); }
+#myCount { font-size:0.72rem; color:var(--gray); }
+#handWrap { flex:1; overflow:hidden; position:relative; padding:0 4px; }
+#handRow {
+  display:flex; align-items:flex-start; padding:4px 0;
+  overflow-x:auto; overflow-y:hidden; height:100%;
+  scrollbar-width:none; -webkit-overflow-scrolling:touch;
+}
+#handRow::-webkit-scrollbar { display:none; }
+
+/* Cards */
+.card {
+  flex-shrink:0;
+  width:clamp(42px,10.5vw,66px); height:clamp(62px,15.5vw,98px);
+  background:var(--card-bg);
+  border:1px solid rgba(0,0,0,0.14); border-radius:clamp(4px,1vw,7px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  cursor:pointer; position:relative;
+  transition:transform 0.14s, box-shadow 0.14s;
+  box-shadow:2px 3px 8px rgba(0,0,0,0.5);
+  user-select:none; margin-right:-9px;
+}
+.card:last-child { margin-right:0; }
+.card:hover { transform:translateY(-7px); z-index:5; }
+.card.sel {
+  transform:translateY(-15px);
+  box-shadow:0 8px 22px rgba(79,201,122,0.55);
+  border-color:var(--accent); z-index:6;
+  background:#f0fff5;
+}
+.card .rank { font-family:'Oswald',sans-serif; font-weight:700; font-size:clamp(1rem,3.2vw,1.55rem); line-height:1; }
+.card .suit { font-size:clamp(0.82rem,2.8vw,1.25rem); line-height:1; }
+.card.red .rank,.card.red .suit { color:var(--red); }
+.card.black .rank,.card.black .suit { color:#1a1a1a; }
+.card .corner { position:absolute; top:3px; left:4px; display:flex; flex-direction:column; line-height:1.1; }
+.card .corner .cr { font-family:'Oswald',sans-serif; font-weight:700; font-size:clamp(0.55rem,1.8vw,0.8rem); }
+.card .corner .cs { font-size:clamp(0.48rem,1.6vw,0.68rem); }
+
+/* Played card */
+.pc {
+  width:clamp(28px,7.5vw,46px); height:clamp(40px,10.5vw,65px);
+  background:var(--card-bg);
+  border:1px solid rgba(0,0,0,0.14); border-radius:clamp(3px,0.7vw,5px);
+  display:flex; flex-direction:column; align-items:center; justify-content:center;
+  box-shadow:1px 2px 5px rgba(0,0,0,0.45); flex-shrink:0;
+}
+.pc .rank { font-family:'Oswald',sans-serif; font-weight:700; font-size:clamp(0.7rem,2.2vw,1.05rem); line-height:1; }
+.pc .suit { font-size:clamp(0.58rem,1.8vw,0.85rem); line-height:1; }
+.pc.red .rank,.pc.red .suit { color:var(--red); }
+.pc.black .rank,.pc.black .suit { color:#1a1a1a; }
+
+/* Action bar */
+#actBar { display:flex; gap:8px; padding:6px 10px 10px; flex-shrink:0; }
+.abtn {
+  flex:1; padding:11px 4px; border:none; border-radius:10px;
+  font-family:'Oswald',sans-serif; font-size:clamp(0.72rem,2.3vw,0.92rem);
+  letter-spacing:2px; text-transform:uppercase; cursor:pointer; transition:all 0.15s;
+}
+.abtn.play { background:linear-gradient(135deg,#1a5a30,#2a8040); color:#fff; border:1px solid rgba(79,201,122,0.35); }
+.abtn.play:hover { background:linear-gradient(135deg,#2a7040,#3aaa55); }
+.abtn.pass { background:linear-gradient(135deg,#3a2a10,#5a4018); color:var(--gold); border:1px solid rgba(201,168,76,0.28); }
+.abtn.pass:hover { background:linear-gradient(135deg,#4a3818,#6a5028); }
+.abtn:disabled { opacity:0.32; cursor:not-allowed; }
+
+/* Overlay */
+#overlay {
+  position:fixed; inset:0; background:rgba(0,0,0,0.82);
+  display:none; align-items:center; justify-content:center;
+  z-index:100; backdrop-filter:blur(5px);
+}
+#overlay.show { display:flex; }
+.obox {
+  background:linear-gradient(135deg,#0d2b1a,#0a1628);
+  border:1px solid rgba(201,168,76,0.4);
+  border-radius:20px; padding:28px 24px;
+  text-align:center; max-width:310px; width:90%;
+}
+.oicon { font-size:2.8rem; margin-bottom:10px; }
+.otitle { font-family:'Oswald',sans-serif; font-size:1.7rem; letter-spacing:4px; color:var(--gold2); margin-bottom:6px; }
+.omsg { font-size:0.85rem; color:var(--gray); margin-bottom:18px; line-height:1.6; }
+.rlist { display:flex; flex-direction:column; gap:7px; margin:10px 0; }
+.ritem { display:flex; align-items:center; gap:10px; background:rgba(255,255,255,0.04); padding:9px 12px; border-radius:9px; }
+.rmed { font-size:1.4rem; width:28px; }
+.rname { font-family:'Oswald',sans-serif; font-size:0.95rem; letter-spacing:2px; flex:1; }
+.rcards { font-size:0.75rem; color:var(--gray); }
+
+/* Toast */
+#toast {
+  position:fixed; bottom:42%; left:50%;
+  transform:translateX(-50%) translateY(16px);
+  background:rgba(8,18,35,0.93); border:1px solid rgba(201,168,76,0.38);
+  padding:9px 22px; border-radius:28px;
+  font-family:'Oswald',sans-serif; letter-spacing:2px; font-size:0.88rem;
+  color:var(--gold); opacity:0; transition:all 0.28s;
+  pointer-events:none; z-index:200; white-space:nowrap;
+}
+#toast.show { opacity:1; transform:translateX(-50%) translateY(0); }
+
+/* Connection dot */
+#dot { position:fixed; top:8px; right:10px; font-size:0.6rem; font-family:'Oswald',sans-serif; letter-spacing:2px; color:var(--accent); opacity:0.45; z-index:50; }
+</style>
+</head>
+<body>
+<div id="dot">● P2P</div>
+<div id="toast"></div>
+<div id="app">
+
+<!-- ===== LOBBY ===== -->
+<div id="lobbyScreen" class="screen active">
+  <div class="logo">大老二</div>
+  <div class="logo-sub">Big Two</div>
+  <div class="suits">♠ ♥ ♦ ♣</div>
+
+  <div class="box">
+    <div class="box-label">👤 你的名字</div>
+    <input type="text" id="myNameIn" placeholder="輸入你的名字" maxlength="8" style="letter-spacing:1px;text-transform:none;">
+  </div>
+
+  <div class="box">
+    <div class="box-label">🏠 建立或加入房間</div>
+    <button class="btn gold" onclick="hostGame()">建立房間（我當房主）</button>
+    <div style="text-align:center;font-size:0.75rem;color:var(--gray);letter-spacing:1px;">── 或 ──</div>
+    <input type="text" id="joinCode" placeholder="輸入房主的 6 碼 ID" maxlength="20">
+    <button class="btn" onclick="joinGame()">加入房間</button>
+    <div id="lobbyMsg" class="msg"></div>
+  </div>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機</p>
+</div>
+
+<!-- ===== WAIT ===== -->
+<div id="waitScreen" class="screen">
+  <div class="logo" style="font-size:2rem;">等待玩家</div>
+  <div style="font-size:0.75rem;color:var(--gray);letter-spacing:2px;">你的房間 ID（分享給朋友）</div>
+  <div class="room-code-display" id="myPeerId">連線中...</div>
+  <div class="player-grid" id="pGrid"></div>
+  <div id="waitMsg" class="msg ok">等待其他玩家加入...</div>
+  <button class="btn gold" id="startBtn" onclick="hostStart()" style="max-width:280px;display:none">開始遊戲 ▶</button>
+  <button class="btn danger" onclick="location.reload()" style="max-width:200px;opacity:0.55;margin-top:4px">離開</button>
+</div>
+
+<!-- ===== GAME ===== -->
+<div id="gameScreen">
+  <div id="zTop">
+    <div class="opp" id="opp2">
+      <div class="oname empty" id="o2name">空位</div>
+      <div class="omini" id="o2cards"></div>
+      <div class="ocount" id="o2count"></div>
+    </div>
+  </div>
+  <div id="zLeft">
+    <div class="opp" id="opp1">
+      <div class="oname empty" id="o1name">空位</div>
+      <div class="omini" id="o1cards"></div>
+      <div class="ocount" id="o1count"></div>
+    </div>
+  </div>
+  <div id="zRight">
+    <div class="opp" id="opp3">
+      <div class="oname empty" id="o3name">空位</div>
+      <div class="omini" id="o3cards"></div>
+      <div class="ocount" id="o3count"></div>
+    </div>
+  </div>
+  <div id="zCenter">
+    <div id="tableBox">
+      <div class="tlabel">牌桌</div>
+      <div class="tcards" id="tCards"></div>
+      <div class="tcombo" id="tCombo"></div>
+      <div class="twho" id="tWho"></div>
+    </div>
+    <div id="turnBadge" class="theirs">等待開始...</div>
+  </div>
+  <div id="zBottom">
+    <div id="myInfo">
+      <div id="myName2">我</div>
+      <div id="myCount">0 張</div>
+    </div>
+    <div id="handWrap"><div id="handRow"></div></div>
+    <div id="actBar">
+      <button class="abtn play" id="playBtn" onclick="doPlay()" disabled>出牌</button>
+      <button class="abtn pass" id="passBtn" onclick="doPass()" disabled>PASS</button>
+    </div>
+  </div>
+</div>
+
+<!-- ===== OVERLAY ===== -->
+<div id="overlay">
+  <div class="obox">
+    <div class="oicon" id="oIcon">🏆</div>
+    <div class="otitle" id="oTitle">遊戲結束</div>
+    <div id="oContent"></div>
+    <div class="omsg" id="oMsg"></div>
+    <button class="btn gold" onclick="location.reload()">回大廳</button>
+  </div>
+</div>
+
+</div>
+
+<script>
+function waitForPeer(cb, tries) {
+  tries = tries || 0;
+  if(typeof Peer !== 'undefined') { cb(); return; }
+  if(tries > 100) { alert('PeerJS 載入失敗，請重新整理'); return; }
+  setTimeout(() => waitForPeer(cb, tries + 1), 100);
+}
+waitForPeer(function() {
+
+// ==========================================
+//  CARD ENGINE
+// ==========================================
+const SUITS = ['♣','♦','♥','♠'];
+const RANKS = ['3','4','5','6','7','8','9','10','J','Q','K','A','2'];
+const RV = {3:0,4:1,5:2,6:3,7:4,8:5,9:6,10:7,J:8,Q:9,K:10,A:11,2:12};
+
+const cardVal = c => RV[c.rank]*4 + SUITS.indexOf(c.suit);
+const cmp = (a,b) => cardVal(a)-cardVal(b);
+const isRed = c => c.suit==='♥'||c.suit==='♦';
+
+function createDeck() {
+  const d=[];
+  for(const s of SUITS) for(const r of RANKS) d.push({rank:r,suit:s});
+  return d;
+}
+function shuffle(d) {
+  for(let i=d.length-1;i>0;i--){const j=Math.floor(Math.random()*(i+1));[d[i],d[j]]=[d[j],d[i]];}
+  return d;
+}
+
+function analyzeCombo(cards) {
+  if(!cards||!cards.length) return null;
+  const n=cards.length;
+  const s=[...cards].sort(cmp);
+  const vs=s.map(c=>RV[c.rank]);
+  const ss=s.map(c=>SUITS.indexOf(c.suit));
+  if(n===1) return {name:'單張',type:'single',power:cardVal(cards[0])};
+  if(n===2){
+    if(vs[0]===vs[1]) return {name:'對子',type:'pair',power:Math.max(cardVal(s[0]),cardVal(s[1]))};
+    return null;
+  }
+  if(n===3){
+    if(vs[0]===vs[1]&&vs[1]===vs[2]) return {name:'三條',type:'triple',power:cardVal(s[2])};
+    return null;
+  }
+  if(n===5){
+    const flush=ss.every(x=>x===ss[0]);
+    const straight=vs.every((v,i)=>i===0||v===vs[i-1]+1);
+    const rg={};vs.forEach(v=>rg[v]=(rg[v]||0)+1);
+    const gr=Object.values(rg).sort((a,b)=>b-a);
+    const fiveOrder=['straight','flush','full','four','sf'];
+    if(flush&&straight) return {name:'同花順',type:'sf',power:cardVal(s[4])+1000};
+    if(gr[0]===4){
+      const q=parseInt(Object.keys(rg).find(k=>rg[k]===4));
+      return {name:'四條',type:'four',power:q*4+800};
+    }
+    if(gr[0]===3&&gr[1]===2){
+      const t=parseInt(Object.keys(rg).find(k=>rg[k]===3));
+      return {name:'葫蘆',type:'full',power:t*4+600};
+    }
+    if(flush) return {name:'同花',type:'flush',power:cardVal(s[4])+400};
+    if(straight) return {name:'順子',type:'straight',power:cardVal(s[4])+200};
+    return null;
+  }
+  return null;
+}
+
+function beats(nc,oc) {
+  if(!oc) return true;
+  const fiveT=['straight','flush','full','four','sf'];
+  if(nc.type===oc.type) return nc.power>oc.power;
+  if(fiveT.includes(nc.type)&&fiveT.includes(oc.type))
+    return fiveT.indexOf(nc.type)>fiveT.indexOf(oc.type);
+  return false;
+}
+
+// ==========================================
+//  PEER STATE
+// ==========================================
+let peer=null, myPeerId='', myName='';
+let isHost=false;
+let connections=[]; // host: array of conns; guest: [hostConn]
+let mySeat=-1;
+
+// Host-side game state (truth)
+let players=[null,null,null,null]; // {name,seat,peerId}
+let GS=null; // game state
+let myHand=[], sel=[];
+
+// ==========================================
+//  PEER INIT
+// ==========================================
+function initPeer(cb) {
+  // Use random 6-char ID for readability
+  const shortId = Math.random().toString(36).substr(2,6).toUpperCase();
+  peer = new Peer(shortId, {
+    host: '0.peerjs.com', port: 443, path: '/', secure: true,
+    debug: 0
+  });
+  peer.on('open', id => { myPeerId=id; cb(id); });
+  peer.on('error', e => {
+    // fallback: let peerjs assign ID
+    if(e.type==='unavailable-id') {
+      peer = new Peer({host:'0.peerjs.com',port:443,path:'/',secure:true});
+      peer.on('open',id=>{myPeerId=id;cb(id);});
+      peer.on('error',err=>showMsg('lobbyMsg','連線錯誤：'+err.message,'err'));
+    } else {
+      showMsg('lobbyMsg','連線錯誤：'+e.message,'err');
+    }
+  });
+}
+
+// ==========================================
+//  HOST
+// ==========================================
+function hostGame() {
+  myName = document.getElementById('myNameIn').value.trim();
+  if(!myName){showMsg('lobbyMsg','請輸入名字','err');return;}
+  mySeat=0; isHost=true;
+  showMsg('lobbyMsg','正在建立房間... ⏳','');
+  initPeer(id => {
+    players[0]={name:myName,seat:0,peerId:id};
+    showScreen('waitScreen');
+    document.getElementById('myPeerId').textContent=id;
+    updateWaitUI();
+    peer.on('connection', conn => {
+      conn.on('open',()=>{
+        conn.on('data', data => hostHandleMsg(conn, data));
+      });
+      conn.on('close',()=>{
+        // remove player
+        const i=players.findIndex(p=>p&&p.peerId===conn.peer);
+        if(i>0){players[i]=null;connections=connections.filter(c=>c!==conn);updateWaitUI();broadcastToAll({type:'players',players});}
+      });
+    });
+  });
+}
+
+function hostHandleMsg(conn, data) {
+  if(data.type==='join') {
+    // Find free seat
+    let seat=-1;
+    for(let i=1;i<4;i++) if(!players[i]){seat=i;break;}
+    if(seat===-1){conn.send({type:'err',msg:'房間已滿'});return;}
+    players[seat]={name:data.name,seat,peerId:conn.peer};
+    connections.push(conn);
+    conn.send({type:'joined',seat,players});
+    broadcastToAll({type:'players',players});
+    updateWaitUI();
+    toast(data.name+' 加入了！');
+  } else if(data.type==='move') {
+    if(GS&&GS.turn===data.seat) {
+      applyMove(data);
+    }
+  }
+}
+
+function hostStart() {
+  const count=players.filter(Boolean).length;
+  if(count<2){toast('至少需要 2 人才能開始');return;}
+  // Fill empty slots with bots? No, just start with connected players
+  const deck=shuffle(createDeck());
+  const hands=[[],[],[],[]];
+  // Deal only to connected seats
+  const seats=players.map((p,i)=>p?i:-1).filter(i=>i>=0);
+  const n=seats.length;
+  for(let i=0;i<52;i++) hands[seats[i%n]].push(deck[i]);
+  for(let i=0;i<4;i++) hands[i].sort(cmp);
+
+  // Who has 3♣
+  let startSeat=seats[0];
+  for(const s of seats) {
+    if(hands[s].some(c=>c.rank==='3'&&c.suit==='♣')){startSeat=s;break;}
+  }
+
+  GS={
+    turn:startSeat, lastPlay:null, lastSeat:-1,
+    passCount:0, finished:[], hands,
+    players:[...players], activeSeat:seats
+  };
+
+  // Send each player their own hand
+  broadcastToAll({type:'gameStart',GS,hands:null}); // broadcast without hands
+  // Send individual hands
+  for(const conn of connections) {
+    const seat=players.findIndex(p=>p&&p.peerId===conn.peer);
+    if(seat>=0) conn.send({type:'yourHand',hand:GS.hands[seat],seat});
+  }
+  // Host starts game
+  myHand=[...GS.hands[0]].sort(cmp);
+  sel=[];
+  showGame();
+  renderGame();
+}
+
+function applyMove(data) {
+  if(!GS) return;
+  const seats=GS.activeSeat;
+  if(data.action==='play') {
+    const cards=data.cards;
+    const combo=analyzeCombo(cards);
+    if(!combo) return;
+    if(GS.lastPlay&&GS.lastPlay.length>0){
+      const prev=analyzeCombo(GS.lastPlay);
+      if(!beats(combo,prev)||cards.length!==GS.lastPlay.length) return;
+    }
+    if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')) return;
+
+    // Remove from hand
+    GS.hands[data.seat]=GS.hands[data.seat].filter(hc=>!cards.some(pc=>pc.rank===hc.rank&&pc.suit===hc.suit));
+    GS.lastPlay=cards; GS.lastSeat=data.seat; GS.passCount=0;
+    if(GS.hands[data.seat].length===0&&!GS.finished.includes(data.seat)) GS.finished.push(data.seat);
+
+    nextTurn(data.seat);
+  } else if(data.action==='pass') {
+    GS.passCount++;
+    const active=seats.filter(s=>!GS.finished.includes(s));
+    if(GS.passCount>=active.length-1) {
+      GS.lastPlay=null; GS.lastSeat=-1; GS.passCount=0;
+      GS.turn=data.seat; // last passer? no: owner goes
+      // Actually: the one who last played goes again
+      let t=GS.lastSeat>=0?GS.lastSeat:data.seat;
+      while(GS.finished.includes(t)||(t!==data.seat&&false)){t=(t+1)%4;} // trust lastSeat
+      GS.turn=GS.lastSeat>=0?GS.lastSeat:nextActiveSeat(data.seat,seats);
+      GS.lastPlay=null;GS.lastSeat=-1;
+      broadcastState();
+      if(mySeat===0) renderGame();
+      return;
+    }
+    nextTurn(data.seat);
+  }
+}
+
+function nextActiveSeat(from,seats){
+  let i=(from+1)%4;
+  let tries=0;
+  while(GS.finished.includes(i)||!seats.includes(i)){i=(i+1)%4;if(++tries>4)break;}
+  return i;
+}
+
+function nextTurn(from) {
+  const seats=GS.activeSeat;
+  const active=seats.filter(s=>!GS.finished.includes(s));
+  if(active.length<=1){
+    // Game over
+    GS.turn=-1;
+    broadcastState();
+    broadcastToAll({type:'gameOver',finished:GS.finished,players:GS.players});
+    showResult(GS.finished,GS.players,GS.hands);
+    return;
+  }
+  GS.turn=nextActiveSeat(from,seats);
+  broadcastState();
+  if(mySeat===0) renderGame();
+}
+
+function broadcastState() {
+  // Send state without full hands for privacy
+  const pub={turn:GS.turn,lastPlay:GS.lastPlay,lastSeat:GS.lastSeat,passCount:GS.passCount,finished:GS.finished,players:GS.players,handCounts:GS.hands.map(h=>h.length)};
+  broadcastToAll({type:'state',state:pub});
+  // Also send each player updated hand if changed
+  for(const conn of connections){
+    const seat=GS.players.findIndex(p=>p&&p.peerId===conn.peer);
+    if(seat>=0) conn.send({type:'yourHand',hand:GS.hands[seat],seat});
+  }
+}
+
+function broadcastToAll(msg) {
+  for(const conn of connections) { try{conn.send(msg);}catch(e){} }
+}
+
+// ==========================================
+//  GUEST
+// ==========================================
+let hostConn=null;
+let pubState=null; // public game state from host
+
+function joinGame() {
+  myName=document.getElementById('myNameIn').value.trim();
+  const code=document.getElementById('joinCode').value.trim().toUpperCase();
+  if(!myName){showMsg('lobbyMsg','請輸入名字','err');return;}
+  if(!code){showMsg('lobbyMsg','請輸入房間 ID','err');return;}
+  showMsg('lobbyMsg','連線中... ⏳','');
+  initPeer(id=>{
+    hostConn=peer.connect(code,{reliable:true});
+    hostConn.on('open',()=>{
+      hostConn.send({type:'join',name:myName,peerId:id});
+      showMsg('lobbyMsg','已連線，等待回應...','ok');
+    });
+    hostConn.on('data',data=>guestHandleMsg(data));
+    hostConn.on('error',e=>showMsg('lobbyMsg','連線失敗，請確認 ID','err'));
+    hostConn.on('close',()=>toast('與房主失去連線'));
+    peer.on('error',e=>showMsg('lobbyMsg','連線錯誤','err'));
+  });
+}
+
+function guestHandleMsg(data) {
+  if(data.type==='err'){showMsg('lobbyMsg',data.msg,'err');return;}
+  if(data.type==='joined'){
+    mySeat=data.seat;
+    players=[...data.players];
+    showScreen('waitScreen');
+    document.getElementById('myPeerId').textContent='已連線';
+    updateWaitUI();
+    return;
+  }
+  if(data.type==='players'){
+    players=[...data.players];
+    updateWaitUI();
+    return;
+  }
+  if(data.type==='gameStart'){
+    GS=data.GS; sel=[];
+    // wait for yourHand
+    return;
+  }
+  if(data.type==='yourHand'){
+    myHand=[...data.hand].sort(cmp);
+    sel=[];
+    if(!document.getElementById('gameScreen').classList.contains('active')){
+      showGame(); renderGame();
+    } else {
+      renderHand();
+      document.getElementById('myCount').textContent=myHand.length+' 張';
+    }
+    return;
+  }
+  if(data.type==='state'){
+    pubState=data.state;
+    // Merge into GS
+    if(!GS) GS={};
+    Object.assign(GS,data.state);
+    sel=[];
+    renderGame();
+    return;
+  }
+  if(data.type==='gameOver'){
+    // Build fake hands count for result
+    const fakeHands=GS&&GS.hands?GS.hands:data.players.map(()=>[]);
+    showResult(data.finished,data.players,fakeHands);
+    return;
+  }
+}
+
+function guestSendMove(action,cards) {
+  const msg={type:'move',action,seat:mySeat,cards:cards||[]};
+  if(isHost) { applyMove(msg); } // host plays locally
+  else if(hostConn) hostConn.send(msg);
+}
+
+// ==========================================
+//  UI
+// ==========================================
+function showScreen(id) {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  const el=document.getElementById(id);
+  if(el) el.classList.add('active');
+  document.getElementById('gameScreen').classList.remove('active');
+}
+function showGame() {
+  document.querySelectorAll('.screen').forEach(s=>s.classList.remove('active'));
+  document.getElementById('gameScreen').classList.add('active');
+}
+
+function updateWaitUI() {
+  const grid=document.getElementById('pGrid');
+  grid.innerHTML='';
+  const icons=['🎯','🎴','🎲','🃏'];
+  for(let i=0;i<4;i++){
+    const p=players[i];
+    const d=document.createElement('div');
+    d.className='pslot'+(p?' on':'');
+    d.innerHTML=`<div class="picon">${p?icons[i]:'⬜'}</div>
+      <div class="pname">${p?p.name:'等待中...'}</div>
+      <div class="pseat">座位${i+1}</div>`;
+    grid.appendChild(d);
+  }
+  const cnt=players.filter(Boolean).length;
+  document.getElementById('waitMsg').textContent=`${cnt}/4 玩家已加入`;
+  const startBtn=document.getElementById('startBtn');
+  if(isHost&&cnt>=2) startBtn.style.display='block';
+  else startBtn.style.display='none';
+}
+
+// ==========================================
+//  RENDER GAME
+// ==========================================
+function renderGame() {
+  if(!GS) return;
+  const ps=GS.players||players;
+  document.getElementById('myName2').textContent=myName;
+  document.getElementById('myCount').textContent=myHand.length+' 張';
+
+  // Opponents (relative seats)
+  const oOrder=[(mySeat+1)%4,(mySeat+2)%4,(mySeat+3)%4];
+  for(let i=0;i<3;i++){
+    const s=oOrder[i];
+    const p=ps[s];
+    const nm=document.getElementById('o'+(i+1)+'name');
+    const mc=document.getElementById('o'+(i+1)+'cards');
+    const ct=document.getElementById('o'+(i+1)+'count');
+    nm.textContent=p?p.name:'空位';
+    nm.className='oname'+(p?'':' empty')+(GS.turn===s?' active':'');
+    if(!p){nm.className='oname empty';mc.innerHTML='';ct.textContent='';continue;}
+    nm.className='oname'+(GS.turn===s?' active':'');
+    const hlen=GS.handCounts?GS.handCounts[s]:(GS.hands?GS.hands[s].length:13);
+    mc.innerHTML='';
+    for(let j=0;j<hlen;j++){const d=document.createElement('div');d.className='mc';mc.appendChild(d);}
+    ct.textContent=hlen+' 張';
+  }
+
+  // Table
+  renderTable();
+  renderHand();
+
+  // Turn badge
+  const tb=document.getElementById('turnBadge');
+  if(GS.turn===mySeat){tb.textContent='★ 你的回合 ★';tb.className='mine';}
+  else{const tp=ps[GS.turn];tb.textContent=(tp?tp.name:'?')+' 的回合';tb.className='theirs';}
+
+  // Buttons
+  const isMyTurn=GS.turn===mySeat;
+  document.getElementById('playBtn').disabled=!isMyTurn;
+  document.getElementById('passBtn').disabled=!isMyTurn||!GS.lastPlay||GS.lastSeat===mySeat;
+}
+
+function renderTable() {
+  const cards=GS.lastPlay||[];
+  const tc=document.getElementById('tCards');
+  tc.innerHTML='';
+  cards.forEach(c=>{
+    const d=document.createElement('div');
+    d.className='pc '+(isRed(c)?'red':'black');
+    d.innerHTML=`<div class="rank">${c.rank}</div><div class="suit">${c.suit}</div>`;
+    tc.appendChild(d);
+  });
+  const combo=analyzeCombo(cards);
+  document.getElementById('tCombo').textContent=combo?combo.name:'';
+  const ps=GS.players||players;
+  const lp=ps[GS.lastSeat];
+  document.getElementById('tWho').textContent=lp?lp.name+' 出牌':'';
+}
+
+function renderHand() {
+  const el=document.getElementById('handRow');
+  el.innerHTML='';
+  myHand.sort(cmp);
+  myHand.forEach((c,i)=>{
+    const d=document.createElement('div');
+    d.className='card '+(isRed(c)?'red':'black')+(sel.includes(i)?' sel':'');
+    d.innerHTML=`<div class="corner"><div class="cr">${c.rank}</div><div class="cs">${c.suit}</div></div>
+      <div class="rank">${c.rank}</div><div class="suit">${c.suit}</div>`;
+    d.onclick=()=>{
+      if(GS.turn!==mySeat) return;
+      const idx=sel.indexOf(i);
+      if(idx===-1) sel.push(i); else sel.splice(idx,1);
+      renderHand();
+    };
+    el.appendChild(d);
+  });
+}
+
+// ==========================================
+//  PLAY / PASS
+// ==========================================
+function doPlay() {
+  if(GS.turn!==mySeat) return;
+  if(!sel.length){toast('請選擇要出的牌');return;}
+  const cards=sel.map(i=>myHand[i]);
+  const combo=analyzeCombo(cards);
+  if(!combo){toast('牌型無效');return;}
+  if(GS.lastPlay===null&&!cards.some(c=>c.rank==='3'&&c.suit==='♣')){toast('第一手必須包含 3♣');return;}
+  if(GS.lastPlay&&GS.lastPlay.length>0){
+    const prev=analyzeCombo(GS.lastPlay);
+    if(cards.length!==GS.lastPlay.length){toast('牌數必須相同（'+GS.lastPlay.length+'張）');return;}
+    if(!beats(combo,prev)){toast('出牌必須大於上家');return;}
+  }
+  // Remove from local hand
+  myHand=myHand.filter((_,i)=>!sel.includes(i));
+  sel=[];
+  guestSendMove('play',cards);
+  if(!isHost){renderHand();document.getElementById('myCount').textContent=myHand.length+' 張';}
+}
+
+function doPass() {
+  if(GS.turn!==mySeat) return;
+  if(!GS.lastPlay||GS.lastSeat===mySeat){toast('你不能 PASS');return;}
+  sel=[];
+  guestSendMove('pass',[]);
+}
+
+// ==========================================
+//  RESULT
+// ==========================================
+function showResult(finished, ps, hands) {
+  const medals=['🥇','🥈','🥉','💀'];
+  const allSeats=[...finished];
+  for(let i=0;i<4;i++) if(!allSeats.includes(i)&&ps[i]) allSeats.push(i);
+  let html='<div class="rlist">';
+  allSeats.forEach((s,r)=>{
+    const p=ps[s];if(!p)return;
+    const hlen=hands&&hands[s]?hands[s].length:0;
+    html+=`<div class="ritem"><div class="rmed">${medals[r]||'💀'}</div><div class="rname">${p.name}</div><div class="rcards">${hlen>0?hlen+'張未出':'出完了！'}</div></div>`;
+  });
+  html+='</div>';
+  document.getElementById('oIcon').textContent='🏆';
+  document.getElementById('oTitle').textContent='遊戲結束';
+  document.getElementById('oContent').innerHTML=html;
+  const winner=ps[finished[0]];
+  document.getElementById('oMsg').textContent=(winner?winner.name:'?')+' 獲勝！';
+  document.getElementById('overlay').classList.add('show');
+}
+
+// ==========================================
+//  UTILS
+// ==========================================
+function showMsg(id,msg,type){const el=document.getElementById(id);el.textContent=msg;el.className='msg '+(type||'');}
+let toastT;
+function toast(msg){
+  const el=document.getElementById('toast');el.textContent=msg;el.classList.add('show');
+  clearTimeout(toastT);toastT=setTimeout(()=>el.classList.remove('show'),2200);
+}
+
+// 暴露給 HTML onclick 使用
+window.hostGame = hostGame;
+window.joinGame = joinGame;
+window.hostStart = hostStart;
+window.doPlay = doPlay;
+window.doPass = doPass;
+
+}); // end waitForPeer
+</script>
+</body>
+</html>
