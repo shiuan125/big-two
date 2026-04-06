@@ -319,6 +319,15 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
 .abtn.pass { background:linear-gradient(135deg,#3a2a10,#5a4018); color:var(--gold); border:1px solid rgba(201,168,76,0.28); }
 .abtn.pass:hover { background:linear-gradient(135deg,#4a3818,#6a5028); }
 .abtn:disabled { opacity:0.32; cursor:not-allowed; }
+.abtn.pass.suggest {
+  animation: passGlow 1.2s infinite;
+  border-color: rgba(255,180,60,0.8);
+  color: #ffcc55;
+}
+@keyframes passGlow {
+  0%,100% { box-shadow: 0 0 6px rgba(255,160,40,0.4); }
+  50% { box-shadow: 0 0 18px rgba(255,160,40,0.85); background: linear-gradient(135deg,#5a3a10,#8a6020); }
+}
 
 /* Overlay */
 #overlay {
@@ -382,7 +391,7 @@ input[type=text]::placeholder { color:rgba(255,255,255,0.2); letter-spacing:0; t
     <button class="btn" onclick="joinGame()">加入房間</button>
     <div id="lobbyMsg" class="msg"></div>
   </div>
-  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機</p>
+  <p style="font-size:0.75rem;color:var(--gray);text-align:center;">無需帳號，點對點直連 · 支援手機 · <span style="color:var(--gold);opacity:0.6;">v1.0.0</span></p>
 </div>
 
 <!-- ===== WAIT ===== -->
@@ -981,23 +990,36 @@ function getCombinations(n, k) {
 function renderHints() {
   const panel=document.getElementById('hintPanel');
   panel.innerHTML='';
-  if(!GS||GS.turn!==mySeat){return;}
+  const passBtn=document.getElementById('passBtn');
+
+  if(!GS||GS.turn!==mySeat){
+    passBtn.classList.remove('suggest');
+    return;
+  }
 
   const combos=getAllWinningCombos();
+
   if(!combos.length){
     const lbl=document.createElement('div');
     lbl.className='hint-label';
-    lbl.textContent= GS.lastPlay?'無牌可打贏上家':'無合法出牌';
+    lbl.textContent= GS.lastPlay?'無牌可打贏上家，請 PASS':'無合法出牌';
     panel.appendChild(lbl);
+    // 如果有牌面且不是自己打的，亮 PASS 鈕
+    if(GS.lastPlay && GS.lastSeat!==mySeat){
+      passBtn.classList.add('suggest');
+    } else {
+      passBtn.classList.remove('suggest');
+    }
     return;
   }
+
+  passBtn.classList.remove('suggest');
 
   const lbl=document.createElement('div');
   lbl.className='hint-label';
   lbl.textContent='可出：';
   panel.appendChild(lbl);
 
-  // Deduplicate by combo name+power, show max 8 hints
   const seen=new Set();
   let shown=0;
   for(const {combo,indices,cards} of combos){
